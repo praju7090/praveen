@@ -1,28 +1,40 @@
 node{
      
     stage('SCM Checkout'){
-        git url: 'https://github.com/praju7090/praveen.git'
+        git url: 'https://github.com/MithunTechnologiesDevOps/java-web-app-docker.git',branch: 'master'
     }
     
-stage('Compile-Package'){
-
-      def mvnHome =  tool name: 'Maven-3.5.6"', type: 'maven'   
-      sh "${mvnHome}/bin/mvn clean package"
-	  sh 'mv target/myweb*.war target/newapp.war'
-   }
-   
-   stage('Build Docker Imager'){
-   sh 'docker build -t praveen7090/java-web-app .'
-   }
-   stage('Docker Image Push'){
-   withCredentials([string(credentialsId: 'Docker_Hub_Pwd', variable: 'Docker_Hub_Pwd')]) {
-   sh "docker login -u praveen7090 -p ${Docker_Hub_Pwd}"
+    stage(" Maven Clean Package"){
+      def mavenHome =  tool name: "Maven-3.5.6", type: "maven"
+      def mavenCMD = "${mavenHome}/bin/mvn"
+      sh "${mavenCMD} clean package"
+      
+    } 
+    
+    
+    stage('Build Docker Image'){
+        sh 'docker build -t dockerhandson/java-web-app .'
     }
-   sh 'docker push praveen7090/java-web-app'
-   }
-  
-   stage('Docker deployment'){
-   sh 'docker run -d -p 8090:8080 --name tomcattest praveen7090/java-web-app' 
-   }
+    
+    stage('Push Docker Image'){
+        withCredentials([string(credentialsId: 'Docker_Hub_Pwd', variable: 'Docker_Hub_Pwd')]) {
+          sh "docker login -u dockerhandson -p ${Docker_Hub_Pwd}"
+        }
+        sh 'docker push dockerhandson/java-web-app'
+     }
+     
+      stage('Run Docker Image In Dev Server'){
+        
+        def dockerRun = ' docker run  -d -p 8080:8080 --name java-web-app dockerhandson/java-web-app'
+         
+         sshagent(['DOCKER_SERVER']) {
+          sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.20.72 docker stop java-web-app || true'
+          sh 'ssh  ubuntu@172.31.20.72 docker rm java-web-app || true'
+          sh 'ssh  ubuntu@172.31.20.72 docker rmi -f  $(docker images -q) || true'
+          sh "ssh  ubuntu@172.31.20.72 ${dockerRun}"
+       }
+       
+    }
+     
+     
 }
-
